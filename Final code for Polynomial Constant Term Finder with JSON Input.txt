@@ -1,0 +1,162 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <cmath>
+#include <map>
+#include <algorithm>
+#include <fstream>
+#include "nlohmann/json.hpp"
+
+using json = nlohmann::json;
+using ld = long double;
+
+// Class to store each point
+struct Point {
+    int x;
+    __int128 y;
+    Point(int _x, __int128 _y) : x(_x), y(_y) {}
+};
+
+// Function to convert string to __int128
+__int128 string_to_int128(const std::string& s) {
+    __int128 result = 0;
+    bool negative = false;
+    size_t start = 0;
+    
+    if (s[0] == '-') {
+        negative = true;
+        start = 1;
+    }
+    
+    for (size_t i = start; i < s.length(); i++) {
+        result = result * 10 + (s[i] - '0');
+    }
+    
+    return negative ? -result : result;
+}
+
+// Function to print __int128
+void print_int128(__int128 x) {
+    if (x < 0) {
+        std::cout << "-";
+        x = -x;
+    }
+    if (x > 9) print_int128(x / 10);
+    std::cout << (int)(x % 10);
+}
+
+// Function to convert from any base to decimal
+__int128 convert_to_decimal(const std::string& value, int base) {
+    __int128 result = 0;
+    __int128 power = 1;
+    std::map<char, int> digit_map;
+    
+    // Initialize digit map
+    for (int i = 0; i < 10; i++) {
+        digit_map[char('0' + i)] = i;
+    }
+    for (int i = 0; i < 6; i++) {
+        digit_map[char('a' + i)] = 10 + i;
+        digit_map[char('A' + i)] = 10 + i;
+    }
+
+    // Convert from right to left
+    for (int i = value.length() - 1; i >= 0; i--) {
+        if (digit_map.find(value[i]) == digit_map.end() || digit_map[value[i]] >= base) {
+            throw std::invalid_argument("Invalid digit for given base");
+        }
+        result += digit_map[value[i]] * power;
+        power *= base;
+    }
+    
+    return result;
+}
+
+// Function to calculate constant term using Lagrange interpolation
+__int128 find_constant_term(std::vector<Point>& points, int k) {
+    int n = points.size();
+    k = std::min(k, n);
+    
+    ld constant = 0;
+    
+    for (int i = 0; i < k; i++) {
+        ld term = points[i].y;
+        ld numerator = 1;
+        ld denominator = 1;
+        
+        for (int j = 0; j < k; j++) {
+            if (i != j) {
+                numerator *= (-points[j].x);
+                denominator *= (points[i].x - points[j].x);
+            }
+        }
+        
+        constant += term * (numerator / denominator);
+    }
+    
+    return static_cast<__int128>(std::round(constant));
+}
+
+// Function to process JSON test case
+__int128 process_test_case(const json& test_case) {
+    int n = test_case["keys"]["n"];
+    int k = test_case["keys"]["k"];
+    std::vector<Point> points;
+    
+    // Process all points
+    for (int i = 1; i <= n; i++) {
+        std::string idx = std::to_string(i);
+        if (test_case.contains(idx)) {
+            int x = std::stoi(idx);
+            int base = std::stoi(test_case[idx]["base"].get<std::string>());
+            std::string value = test_case[idx]["value"];
+            __int128 y = convert_to_decimal(value, base);
+            points.push_back(Point(x, y));
+        }
+    }
+    
+    return find_constant_term(points, k);
+}
+
+// Function to read and process JSON file
+json read_json_file(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Unable to open file: " + filename);
+    }
+    
+    json j;
+    try {
+        file >> j;
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Error parsing JSON file: " + std::string(e.what()));
+    }
+    
+    file.close();
+    return j;
+}
+
+int main() {
+    try {
+        // Read test cases from files
+        json test_case1 = read_json_file("test_case1.json");
+        json test_case2 = read_json_file("test_case2.json");
+        
+        // Process both test cases
+        __int128 result1 = process_test_case(test_case1);
+        __int128 result2 = process_test_case(test_case2);
+        
+        // Print results
+        std::cout << "Test Case 1 - Constant term (c): ";
+        print_int128(result1);
+        std::cout << "\nTest Case 2 - Constant term (c): ";
+        print_int128(result2);
+        std::cout << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+    
+    return 0;
+}
